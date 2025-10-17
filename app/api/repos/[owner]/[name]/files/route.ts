@@ -32,7 +32,28 @@ export async function POST(
       }
     }
 
-    return Response.json(files);
+    // 2) README.md (automático, como descrição)
+    // usa o endpoint específico que resolve README em qualquer pasta (root/docs etc.)
+    let readme: string | null = null;
+    try {
+      const { data } = await octokit.repos.getReadme({
+        owner: params.owner,
+        repo: params.name,
+      });
+      // getReadme retorna base64
+      const b64: string | undefined = data.content;
+      if (b64) {
+        readme = Buffer.from(b64, "base64").toString("utf-8");
+      }
+    } catch {
+      // fallback: se já veio selecionado um README.md, usa aquele
+      const selectedReadme =
+        files.find(f => f.path.toLowerCase().endsWith("readme.md"))?.content ??
+        null;
+      readme = selectedReadme;
+    }
+
+    return Response.json({files, readme});
   } catch (e: unknown) {
     const msg = getErrorMessage(e);
 

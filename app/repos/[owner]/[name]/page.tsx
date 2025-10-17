@@ -7,7 +7,6 @@ import { analyzeCommits } from "@/app/_lib/dossier/commitAnalysis";
 import { getErrorMessage } from "@/app/_ utils/errors";
 
 type Node = { path: string; type: "file" | "dir"; size?: number };
-type FileOut = { path: string; content: string };
 type CommitLite = {
   sha: string;
   message: string;
@@ -76,7 +75,15 @@ export default function RepoDetail() {
         body: JSON.stringify({ paths }),
       });
       if (!resFiles.ok) throw new Error(await resFiles.text());
-      const fileData: FileOut[] = await resFiles.json();
+
+      
+const resp = (await resFiles.json()) as {
+  files: { path: string; content: string }[];
+  readme: string | null;
+};
+
+const fileData = resp.files;
+const readmeContent = resp.readme; // <- use SEMPRE este nome
 
       // 2) Últimos commits
       const resCommits = await fetch(
@@ -86,13 +93,36 @@ export default function RepoDetail() {
       const commitLite: CommitLite[] = resCommits.ok
         ? await resCommits.json()
         : [];
-      const { reviewed } = analyzeCommits(commitLite);
+      const { reviewed: reviewedCommits } = analyzeCommits(commitLite);
+      const pkgSummary = undefined as
+        | {
+            name?: string;
+            version?: string;
+            dependencies?: Record<string, string>;
+            devDependencies?: Record<string, string>;
+          }
+        | undefined;
+
+      const envExample: string | null = null;
+
+      // 3) Usa README como descrição (snippet para caber no topo)
+      const descriptionFromReadme = readmeContent
+        ? readmeContent.split("\n").slice(0, 12).join("\n")
+        : null;
 
       // 3) Monta o markdown completo (com commits)
       const md = buildDossierMarkdown(
-        { owner: owner as string, repo: name as string },
+        {
+          owner: owner as string,
+          repo: name as string,
+          description: descriptionFromReadme, // ⬅️ aqui usamos o README
+          defaultBranch: "main",
+        },
         fileData,
-        reviewed,
+        reviewedCommits,
+        nodes.map((n) => n.path), // allPathsFlat (se quiser a árvore)
+        pkgSummary, // pode ser undefined se não tiver
+        envExample, // pode ser null/undefined
       );
 
       // 4) Export de acordo com o tipo
