@@ -40,7 +40,6 @@ export async function GET() {
     return Response.json(payload);
   } catch (e: unknown) {
     const msg = getErrorMessage(e);
-  setError(`Erro ao ...: ${msg}`);
     const code =
       msg === "Unauthorized" || msg === "No GitHub token" ? 401 : 502;
     return new Response(msg, { status: code });
