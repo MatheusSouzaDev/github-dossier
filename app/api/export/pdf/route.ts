@@ -1,9 +1,10 @@
+// app/api/export/pdf/route.ts
 import MarkdownIt from "markdown-it";
-import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 
 export const runtime = "nodejs";
-
-const PDF_TIMEOUT_MS = Number(process.env.PDF_TIMEOUT_MS ?? 45000);
+export const maxDuration = 60; // Vercel: aumenta timeout da função (opcional)
 
 export async function POST(req: Request) {
   try {
@@ -11,13 +12,11 @@ export async function POST(req: Request) {
       markdown: string;
       title?: string;
     };
-    if (!markdown) {
-      return new Response("markdown required", { status: 400 });
-    }
+    if (!markdown) return new Response("markdown required", { status: 400 });
 
-    // 1) MD -> HTML (sem recursos externos)
     const md = new MarkdownIt({ html: true, linkify: true });
     const body = md.render(markdown);
+
     const html = `<!doctype html>
 <html>
 <head>
@@ -25,7 +24,7 @@ export async function POST(req: Request) {
 <title>${escapeHtml(title)}</title>
 <style>
   @page { size: A4; margin: 20mm; }
-  *, *::before, *::after { box-sizing: border-box; }
+  *,*::before,*::after { box-sizing: border-box; }
   body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:#111; }
   h1,h2,h3 { color:#0f172a; margin: 18px 0 10px; }
   pre { background:#0b1220; color:#e5e7eb; padding:12px; border-radius:8px; white-space:pre-wrap; word-break:break-word; }
@@ -41,25 +40,20 @@ export async function POST(req: Request) {
 <body>${body}</body>
 </html>`;
 
-    // 2) Lança Chromium de forma compatível (local/CI)
+    // Caminho do Chromium compatível com Vercel
+    const executablePath = await chromium.executablePath();
+
     const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--font-render-hinting=medium",
-      ],
+      args: chromium.args,
+      executablePath,
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
-    page.setDefaultNavigationTimeout(PDF_TIMEOUT_MS);
-    page.setDefaultTimeout(PDF_TIMEOUT_MS);
-
-    // Evita travar esperando "networkidle0" quando não há requests
     await page.setContent(html, { waitUntil: "domcontentloaded" });
     await page.emulateMediaType("screen");
 
-    const pdfBuffer = await page.pdf({
+    const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
@@ -67,22 +61,16 @@ export async function POST(req: Request) {
 
     await browser.close();
 
-    // Retorna como Blob para agradar o BodyInit do fetch
-    const blob = new Blob([new Uint8Array(pdfBuffer)], {
-      type: "application/pdf",
-    });
-
+    const blob = new Blob([new Uint8Array(pdf)], { type: "application/pdf" });
     return new Response(blob, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${sanitizeFileName(title)}.pdf"`,
-        // Evita cache em dev
         "Cache-Control": "no-store",
       },
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    // Log detalhado no server para debug
     console.error("[/api/export/pdf] ERROR:", msg);
     return new Response(`PDF error: ${msg}`, { status: 500 });
   }
