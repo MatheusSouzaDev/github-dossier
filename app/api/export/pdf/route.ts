@@ -2,6 +2,7 @@ import MarkdownIt from "markdown-it";
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 import path from "path";
+import fs from "fs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,10 +18,11 @@ if (typeof _chromium.setGraphicsMode === "function") _chromium.setGraphicsMode(f
 
 // Corrige o caminho dos .br (brotli) na Vercel
 try {
-  if (typeof _chromium.setBrotliPath === "function") {
-    _chromium.setBrotliPath(
-      path.join(process.cwd(), "node_modules", "@sparticuz", "chromium", "bin")
-    );
+   // raiz do pacote @sparticuz/chromium dentro do bundle
+  const pkgRoot = path.dirname(require.resolve("@sparticuz/chromium/package.json"));
+  const brotliDir = path.join(pkgRoot, "bin"); // .../node_modules/@sparticuz/chromium/bin
+  if (typeof _chromium.setBrotliPath === "function" && fs.existsSync(brotliDir)) {
+    _chromium.setBrotliPath(brotliDir);
   }
 } catch { /* ignore */ }
 
