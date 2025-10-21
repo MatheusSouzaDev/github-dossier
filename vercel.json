@@ -4,6 +4,10 @@
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
       "memory": 1024,
       "maxDuration": 60
+    },
+    "app/api/export/docx/route.ts": {
+      "memory": 512,
+      "maxDuration": 30
     }
   }
 }

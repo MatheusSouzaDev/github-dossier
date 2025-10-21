@@ -1,12 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // garante que os .br do @sparticuz/chromium vão para o bundle da função
     outputFileTracingIncludes: {
+      // sem extensão aqui; use o caminho lógico da rota
       'app/api/export/pdf/route': [
         'node_modules/@sparticuz/chromium/bin/**',
       ],
     },
   },
 };
-module.exports = nextConfig;
+
+export default nextConfig;
