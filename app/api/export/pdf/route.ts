@@ -1,10 +1,28 @@
-// app/api/export/pdf/route.ts
 import MarkdownIt from "markdown-it";
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
+import path from "path";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Vercel: aumenta timeout da função (opcional)
+export const maxDuration = 60;
+
+// Ajustes recomendados pelo Sparticuz
+const _chromium = chromium as unknown as {
+  setHeadlessMode?: (v: boolean) => void;
+  setGraphicsMode?: (v: boolean) => void;
+  setBrotliPath?: (p: string) => void;
+};
+if (typeof _chromium.setHeadlessMode === "function") _chromium.setHeadlessMode(true);
+if (typeof _chromium.setGraphicsMode === "function") _chromium.setGraphicsMode(false);
+
+// Corrige o caminho dos .br (brotli) na Vercel
+try {
+  if (typeof _chromium.setBrotliPath === "function") {
+    _chromium.setBrotliPath(
+      path.join(process.cwd(), "node_modules", "@sparticuz", "chromium", "bin")
+    );
+  }
+} catch { /* ignore */ }
 
 export async function POST(req: Request) {
   try {
@@ -40,13 +58,12 @@ export async function POST(req: Request) {
 <body>${body}</body>
 </html>`;
 
-    // Caminho do Chromium compatível com Vercel
     const executablePath = await chromium.executablePath();
 
     const browser = await puppeteer.launch({
       args: chromium.args,
       executablePath,
-      headless: true, 
+      headless: true, // NÃO usar chromium.headless
     });
 
     const page = await browser.newPage();
